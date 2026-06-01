@@ -58,6 +58,15 @@ export class Tour {
     };
     update();
     const boundUpdate = update.bind(this);
+    
+    const tStart = performance.now();
+    let rafId = 0;
+    const tick = () => {
+      boundUpdate();
+      if (performance.now() - tStart < 500) rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    
     window.addEventListener('resize', boundUpdate);
     window.addEventListener('scroll', boundUpdate, true);
     requestAnimationFrame(() => halo.classList.add('tour-fade-in'));
@@ -65,6 +74,7 @@ export class Tour {
       el: halo,
       update: boundUpdate,
       destroy() {
+        if (rafId) cancelAnimationFrame(rafId);
         window.removeEventListener('resize', boundUpdate);
         window.removeEventListener('scroll', boundUpdate, true);
         halo.remove();

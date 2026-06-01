@@ -2488,11 +2488,8 @@ async function _openTasksForTour() {
   return modal;
 }
 
-async function _runTaskTour(steps, doneText, opts) {
+async function _runTaskTour(tour, steps, doneText, opts) {
   opts = opts || {};
-  // When `continueLabel` is set, the tour ends with a centered "continue?"
-  // tooltip instead of going straight to doneText. The user can pick to
-  // keep going (returns 'continue') or stop here.
   const _msgEl = document.getElementById('message');
   if (_msgEl) {
     _msgEl.value = '';
@@ -2505,115 +2502,30 @@ async function _runTaskTour(steps, doneText, opts) {
     return true;
   }
 
-  let halos = [];
-
-  function clearHalos() {
-    halos.forEach(h => h.destroy());
-    halos = [];
-    document.querySelectorAll('.tour-halo').forEach(e => e.remove());
-  }
-  function makeHalo(target) {
-    const halo = document.createElement('div');
-    halo.className = 'tour-halo';
-    document.body.appendChild(halo);
-    const update = () => {
-      const r = target.getBoundingClientRect();
-      halo.style.top = (r.top - 4) + 'px';
-      halo.style.left = (r.left - 4) + 'px';
-      halo.style.width = (r.width + 8) + 'px';
-      halo.style.height = (r.height + 8) + 'px';
-    };
-    update();
-    // The tasks modal-content runs a 250ms `modal-enter` scale animation
-    // when it first opens. A one-shot getBoundingClientRect() captures
-    // the mid-animation (scaled-down) rect and the halo gets locked to
-    // a "cropped" version. Re-sync every animation frame for ~500ms so
-    // we track the entrance to its final size.
-    const _tStart = performance.now();
-    let _rafId = 0;
-    const tick = () => {
-      update();
-      if (performance.now() - _tStart < 500) _rafId = requestAnimationFrame(tick);
-    };
-    _rafId = requestAnimationFrame(tick);
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    requestAnimationFrame(() => halo.classList.add('tour-fade-in'));
-    return { destroy() {
-      if (_rafId) cancelAnimationFrame(_rafId);
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-      halo.remove();
-    } };
-  }
-  function clear() {
-    clearHalos();
-    tour.tooltip.remove();
-    document.body.classList.remove('tour-active');
-  }
-  function positionTooltip(target) {
-    tour.tooltip.style.visibility = 'hidden';
-    tour.tooltip.style.display = '';
-    const tw = tour.tooltip.offsetWidth || 260;
-    const th = tour.tooltip.offsetHeight || 100;
-    const r = target.getBoundingClientRect();
-    const gap = 12;
-    let top = r.bottom + gap;
-    let left = r.left + r.width / 2 - tw / 2;
-    if (top + th > window.innerHeight - 10) top = r.top - gap - th;
-    if (top < 10) top = 10;
-    if (left + tw > window.innerWidth - 10) left = window.innerWidth - tw - 10;
-    if (left < 10) left = 10;
-    tour.tooltip.style.top = top + 'px';
-    tour.tooltip.style.left = left + 'px';
-    tour.tooltip.style.visibility = '';
-  }
-  function showStep(step, i) {
-    return new Promise(resolve => {
-      clearHalos();
-      if (step.before) { try { step.before(); } catch (_) {} }
-      setTimeout(() => {
-        const target = document.querySelector(step.sel);
-        if (!target) return resolve('skip');
-        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        halos.push(makeHalo(target));
-        tour.tooltip.classList.remove('tour-fade-in');
-        tour.tooltip.innerHTML =
-          '<div class="tour-text">' + step.text + '</div>' +
-          '<div class="tour-nav">' +
-            '<button class="tour-btn-arrow' + (i === 0 ? ' disabled' : '') + '" data-act="back">←</button>' +
-            '<button class="tour-btn-skip" data-act="skip">' + (i === steps.length - 1 ? 'done' : 'skip tour') + '</button>' +
-            '<button class="tour-btn-arrow" data-act="next">' + (i === steps.length - 1 ? '✓' : '→') + '</button>' +
-          '</div>';
-        requestAnimationFrame(() => {
-          positionTooltip(target);
-          tour.tooltip.classList.add('tour-fade-in');
-        });
-        const onClick = (e) => {
-          const hit = e.target.closest && e.target.closest('[data-act]');
-          if (!hit) return;
-          tour.tooltip.removeEventListener('click', onClick);
-          // Always fire step.after when leaving the step, regardless of
-          // direction — it's the symmetric pair to `before` (undo the
-          // temporary state change), and a user clicking "back" on the
-          // chat-input step still needs the tasks modal restored.
-          if (step.after) { try { step.after(); } catch (_) {} }
-          resolve(hit.dataset.act);
-        };
-        tour.tooltip.addEventListener('click', onClick);
-      }, step.before ? 160 : 0);
-    });
-  }
-
   for (let i = 0; i < steps.length; i++) {
-    const res = await showStep(steps[i], i);
-    if (res === 'skip') { clear(); return 'skipped'; }
+    const step = steps[i];
+    const res = await tour.showStep(step.sel, step.text, {
+      isFirst: i === 0,
+      isLast: i === steps.length - 1,
+      before: step.before
+    });
+    
+    if (step.after) { try { step.after(); } catch (_) {} }
+    
+    if (res === 'skip') { tour.clear(); return 'skipped'; }
     if (res === 'back' && i > 0) i -= 2;
   }
-  // Optional "Continue to part X?" prompt — show a centered tooltip
-  // with two buttons before tearing down the tour overlay.
+
   if (opts.continueLabel) {
-    clearHalos();
+    const res = await tour.showStep(null, opts.continueText || 'Want to keep going?', {
+      isFirst: false,
+      isLast: false,
+      placement: 'center-above',
+      finishLabel: true, // we customize this via replacing tooltip innerHTML? 
+      // Wait, let's just use the tour interface properly.
+    });
+    // Let's manually override the tooltip for the continue prompt since it's custom.
+    tour.clearHalos();
     tour.tooltip.classList.remove('tour-fade-in');
     tour.tooltip.innerHTML =
       '<div class="tour-text">' + (opts.continueText || 'Want to keep going?') + '</div>' +
@@ -2621,7 +2533,6 @@ async function _runTaskTour(steps, doneText, opts) {
         '<button class="tour-btn-skip" data-act="stop">no thanks</button>' +
         '<button class="tour-btn-arrow" data-act="continue">' + opts.continueLabel + '</button>' +
       '</div>';
-    // Centered in the upper third of the viewport.
     tour.tooltip.style.visibility = 'hidden';
     requestAnimationFrame(() => {
       const tw = tour.tooltip.offsetWidth || 260;
@@ -2640,11 +2551,12 @@ async function _runTaskTour(steps, doneText, opts) {
       };
       tour.tooltip.addEventListener('click', onClick);
     });
-    clear();
+    tour.clear();
     if (choice === 'continue') return 'continue';
   } else {
-    clear();
+    tour.clear();
   }
+  
   if (doneText) await typewriterReply(doneText);
   return 'done';
 }
@@ -2652,7 +2564,7 @@ async function _runTaskTour(steps, doneText, opts) {
 async function _cmdTourTask1(args, ctx) {
   const tour = new Tour();
 
-  const result = await _runTaskTour([
+  const result = await _runTaskTour(tour, [
     { sel: '#tasks-modal .modal-content',
       text: '<b>Welcome to Tasks.</b> Manage all your AI background work here.' },
     { sel: '#tasks-pause-all-btn',
@@ -2670,7 +2582,7 @@ async function _cmdTourTask1(args, ctx) {
 async function _cmdTourTask2(args, ctx) {
   const tour = new Tour();
 
-  return _runTaskTour([
+  return _runTaskTour(tour, [
     { sel: '#tasks-modal .tasks-tab[data-tab="new"]',
       text: '<b>Add</b> creates scheduled prompts, research jobs, actions, event triggers, or webhooks.',
       before: () => document.querySelector('#tasks-modal .tasks-tab[data-tab="new"]')?.click() },
