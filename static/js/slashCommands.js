@@ -2517,14 +2517,6 @@ async function _runTaskTour(tour, steps, doneText, opts) {
   }
 
   if (opts.continueLabel) {
-    const res = await tour.showStep(null, opts.continueText || 'Want to keep going?', {
-      isFirst: false,
-      isLast: false,
-      placement: 'center-above',
-      finishLabel: true, // we customize this via replacing tooltip innerHTML? 
-      // Wait, let's just use the tour interface properly.
-    });
-    // Let's manually override the tooltip for the continue prompt since it's custom.
     tour.clearHalos();
     tour.tooltip.classList.remove('tour-fade-in');
     tour.tooltip.innerHTML =
