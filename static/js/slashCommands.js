@@ -2599,7 +2599,7 @@ async function _cmdTourTask2(args, ctx) {
     { sel: '#tasks-modal .memory-item[data-idx="0"]',
       text: 'Or pick a template and fill out the form manually.' },
     { sel: '#task-form-save, #tasks-modal .tasks-tab[data-tab="tasks"]',
-      text: 'Tasks can be edited, paused, resumed, run now, or deleted from their cards.',
+      text: 'Tasks can be edited, run now, or deleted from their cards. You can also quickly pause or resume them by clicking their status pills.',
       before: () => document.querySelector('#tasks-modal .tasks-tab[data-tab="tasks"]')?.click() },
     // Tuck the modal out of the way so the chatbox is unmistakable, then
     // re-show it when the user moves past this step so the tour lands
@@ -2658,7 +2658,7 @@ async function _cmdTourResearch(args, ctx) {
     { sel: '#research-query',
       text: 'Type what you want to researched here. Be specific — <i>"compare X vs Y for Z"</i> beats <i>"tell me about X"</i>.' },
     { sel: '#research-settings-body',
-      text: '<b>Rounds</b> is how long the model will keep searching for. You can set to <b>Auto</b>, or go deeper/quicker depending on preference.',
+      text: 'Configure <b>Rounds</b> to control search depth, or adjust <b>Extraction</b> timeouts and concurrency to fine-tune the LLM-in-the-loop behavior.',
       before: _ensureSettingsOpen },
     { sel: '#research-pane',
       text: 'When a report finishes you can <b>discuss the results with the LLM</b> in chat, or open the full <b>visual HTML report</b> — sources, images, the works.',
